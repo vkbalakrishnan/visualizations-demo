@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<head>
+<meta charset="utf-8">
+<style>
+
+path {
+  stroke: #fff;
+  fill-rule: evenodd;
+}
+
+</style>
+</head>
+<body>
+<script src="d3.min.js"></script>
+<script>
+
+var width = 1200 ,
+    height = 680,
+    radius = Math.min(width, height) / 2;
+
+var x = d3.scale.linear()
+    .range([0, 2 * Math.PI]);
+
+var y = d3.scale.sqrt()
+    .range([0, radius]);
+
+var color = d3.scale.category20c();
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height)
+    .append("g")
+    .attr("transform", "translate(" + width / 2 + "," + (height / 2 + 10) + ")");
+
+var partition = d3.layout.partition()
+    .value(function(d) { return d.size; });
+
+var arc = d3.svg.arc()
+    .startAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x))); })
+    .endAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x + d.dx))); })
+    .innerRadius(function(d) { return 100; })
+    .outerRadius(function(d) { return 200; });
+
+d3.json("flare.json", function(error, root) {
+
+  var g = svg.selectAll(".arc")
+      .data(partition.nodes(root))
+      .enter().append("g")
+      .attr("class", "arc");
+
+  var nodes = g.append("path")
+      .attr("d", arc)
+      .style("fill", function(d) { return color(d.name); });
+
+    g.append("svg:text")
+      .attr("dy", ".31em")
+      .attr("text-anchor", function(d) { 
+        var c = arc.centroid(d),
+        x = c[0],
+        y = c[1],
+        // pythagorean theorem for hypotenuse
+        h = Math.sqrt(x*x + y*y);
+        var deg = y < 0 ? -(Math.acos(x/h)*360)/(2*Math.PI) : (Math.acos(x/h)*360)/(2*Math.PI);
+        if((deg < 0 ? -1:1) * deg < 90)
+          return "start"; 
+        else return "end";
+      }) //arc.centroid(d)[0] > 0.0 ? "start" : "end"
+      .attr("transform", function(d){
+        var c = arc.centroid(d),
+        x = c[0],
+        y = c[1],
+        // pythagorean theorem for hypotenuse
+        h = Math.sqrt(x*x + y*y);
+        var deg = y < 0 ? -(Math.acos(x/h)*360)/(2*Math.PI) : (Math.acos(x/h)*360)/(2*Math.PI);
+        var tf;
+        if((deg < 0 ? -1:1) * deg < 90)
+          tf= "translate(" + (x/h * 110) +  ',' +(y/h * 110) +  ")rotate("+deg+")";
+        else tf= "translate(" + (x/h * 110) +  ',' +(y/h * 110) +  ")rotate("+parseFloat(180+deg)+")";
+                console.log(d.name, "x:",x, "y:",y, deg, 180-parseFloat(deg), tf);
+                return tf;
+      })
+      .text(function(d) { 
+        return d.name.length > 0 ? d.name: "";
+      });
+
+  console.log(g, nodes);
+
+  function click(d) {
+    path.transition()
+      .duration(750)
+      .attrTween("d", arcTween(d));
+  }
+
+  function angle(d) {
+    var a = (d.startAngle + d.endAngle) * 90 / Math.PI - 90;
+    console.log(d.startAngle + d.endAngle, d.startAngle , d.endAngle, a);
+    return a > 90 ? a - 180 : a;
+  }
+});
+
+d3.select(self.frameElement).style("height", height + "px");
+
+// Interpolate the scales!
+function arcTween(d) {
+  var xd = d3.interpolate(x.domain(), [d.x, d.x + d.dx]),
+      yd = d3.interpolate(y.domain(), [d.y, 1]),
+      yr = d3.interpolate(y.range(), [d.y ? 20 : 0, radius]);
+  return function(d, i) {
+    return i
+        ? function(t) { return arc(d); }
+        : function(t) { x.domain(xd(t)); y.domain(yd(t)).range(yr(t)); return arc(d); };
+  };
+}
+
+</script>
+</body>
+</html>
